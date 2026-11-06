@@ -1,0 +1,60 @@
+# Model catalog. One GGUF file per line, pipe-separated:
+# id|kind|hf_repo|file|bytes|sha256|license|llama-server args
+#   kind:  chat | embed | rerank
+#   bytes, sha256: pinned from the Hugging Face resolve headers (x-linked-size / x-linked-etag).
+#   args:  model-specific llama-server flags (sampling, reasoning). Profile flags are added after these.
+# Verify every row still resolves:  ula catalog verify
+#
+# ---- Qwen3.6-35B-A3B: MoE, 3B active. Fast executor / coding agent. Apache-2.0 ----
+# Heretic v1.3.0 MPOA by llmfan46 (KL 0.0015, 10/100 refusals). Use the *Native-MTP-Preserved* builds:
+# the older mradermacher "uncensored-heretic" GGUFs were made from a withdrawn v1 upload with unknown KL.
+qwen3.6-35b-a3b-heretic-iq3s|chat|mradermacher/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-i1-GGUF|Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved.i1-IQ3_S.gguf|15614366240|defcf4e22299cb7d22a856a1da8f7c5164ef8cdbdfe57556e6121bb9f1311710|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.6-35b-a3b-iq3s|chat|unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-IQ3_S.gguf|13676723168|66a3ca888ce13482b40c333db2432c0ebde3a7b13754fc29f0c6f5e89703ec66|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+# ---- Qwen3.8-27B: dense hybrid (DeltaNet). Architect / reviewer. Apache-2.0 ----
+qwen3.8-27b-heretic-ara-iq3m|chat|mradermacher/Qwen3.8-27B-heretic-ara-i1-GGUF|Qwen3.8-27B-heretic-ara.i1-IQ3_M.gguf|12768331936|c7fb6283c47e5c7da3221e21c8cee228999d7102cc5d720ca646741fc240473c|apache-2.0|--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.8-27b-iq4xs|chat|unsloth/Qwen3.8-27B-GGUF|Qwen3.8-27B-UD-IQ4_XS.gguf|14252845984|40fac4050e940397dbf13087afd50f4734a11805bf9d65ef8ddd7483470e6199|apache-2.0|--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+# ---- RAG helpers. Apache-2.0 ----
+qwen3-embedding-0.6b-q8|embed|Qwen/Qwen3-Embedding-0.6B-GGUF|Qwen3-Embedding-0.6B-Q8_0.gguf|639150592|06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439|apache-2.0|--embedding --pooling last
+qwen3-reranker-0.6b-q8|rerank|ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF|qwen3-reranker-0.6b-q8_0.gguf|639153184|22c9979ce4fbcdc5acdc310c6641c32797eff1aa980b8f7a2db8a8ea23429a48|apache-2.0|--reranking --pooling rank
+# ---- tiny model for CI and smoke tests ----
+qwen3-0.6b-q8|chat|Qwen/Qwen3-0.6B-GGUF|Qwen3-0.6B-Q8_0.gguf|639446688|9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0
+# ---- added for mac profiles ----
+# ---- Qwen3.6-35B-A3B heretic, more quants (Native-MTP-Preserved i1 = current llmfan46 MPOA upload; the MTP layer is skipped at load). Apache-2.0 ----
+qwen3.6-35b-a3b-heretic-q4km|chat|mradermacher/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-i1-GGUF|Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved.i1-Q4_K_M.gguf|21712415264|fcef5dbd632313c7bb4636fdd413d730ddf41b88ef34937400421c33dcc6865f|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.6-35b-a3b-heretic-q5km|chat|mradermacher/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-i1-GGUF|Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved.i1-Q5_K_M.gguf|25346484768|f013b930ec823d2aedc671e28a7963b610c01bdda0b613b65e590f52c9f7ff18|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.6-35b-a3b-q4km|chat|unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q4_K_M.gguf|22134528992|ac0e2c1189e055faa36eff361580e79c5bd6f8e76bffb4ce547f167d53e31a61|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.6-35b-a3b-q5km|chat|unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q5_K_M.gguf|26456194016|c13ce26253ea334df472bd8fbd2d6da66d8a41195c17f6fcbf44c4d20ece0932|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+# ---- Qwen3.8-27B, more quants. Apache-2.0 ----
+qwen3.8-27b-heretic-ara-q4km|chat|mradermacher/Qwen3.8-27B-heretic-ara-i1-GGUF|Qwen3.8-27B-heretic-ara.i1-Q4_K_M.gguf|16810715296|31de5a96df4eff9a08e27b34c14a8e4eac931568b3cfeaab0aed88e99e1a5c2f|apache-2.0|--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.8-27b-q4km|chat|unsloth/Qwen3.8-27B-GGUF|Qwen3.8-27B-UD-Q4_K_M.gguf|16464440224|322e194ff79741c7baa497c240f677f54b201b0efab44ca8e50f122b39123482|apache-2.0|--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+# ---- gpt-oss (harmony format, embedded template). MoE with native MXFP4 experts. 20b: 24 layers, 12 full-attention, KV 24 KiB/token f16; 120b: 36 layers, 18 full-attention, KV 36 KiB/token f16. Apache-2.0 ----
+# 20b heretic: p-e-w ARA v3 (KL 0.0554, 3/100 refusals), weights uploaded 2026-03-05 08:45Z; mradermacher quantized 2026-03-06 (after it).
+gpt-oss-20b-heretic-ara-mxfp4|chat|mradermacher/gpt-oss-20b-heretic-ara-v3-GGUF|gpt-oss-20b-heretic-ara-v3.MXFP4_MOE.gguf|12109567296|646e85a132eeb91cd4cc35c8258677e26af29546e7b52628ee2696ea189e9013|apache-2.0|--temp 1.0 --top-p 1.0
+gpt-oss-20b-mxfp4|chat|ggml-org/gpt-oss-20b-GGUF|gpt-oss-20b-MXFP4.gguf|12109566624|27cd6c432c7672cb812a92f611cf3ba7bbc35928262bb1e1253ff4ee6ae35901|apache-2.0|--temp 1.0 --top-p 1.0
+# 120b Derestricted: gghfez file = concatenation of mradermacher/gpt-oss-120b-Derestricted-GGUF MXFP4_MOE part1of2+part2of2 (sizes sum exactly; sampled ranges byte-identical).
+# Source ArliAI weights uploaded 2025-11-28 14:46Z (later commit is chat_template only); GGUF quantized_at 2025-11-29 08:32Z; gghfez upload 2025-11-30. GGUF general.license apache-2.0.
+gpt-oss-120b-derestricted-mxfp4|chat|gghfez/gpt-oss-120b-Derestricted.MXFP4_MOE-gguf|gpt-oss-120b-Derestricted.MXFP4_MOE.gguf|63387347008|cd058b3dee21f12ea3e74b0202e6ba31831bbd7de9853e90ceb7d807e9f6adac|apache-2.0|--temp 1.0 --top-p 1.0
+gpt-oss-120b-mxfp4|chat|ggml-org/gpt-oss-120b-GGUF|gpt-oss-120b-MXFP4.gguf|63387346208|582bd40f6886200101f4c4ed9f25f3fe80cc14c86e9e2b37746cd8904a0c622d|apache-2.0|--temp 1.0 --top-p 1.0
+# ---- added for cpu profiles ----
+# ---- Qwen3.6-35B-A3B quants for the CPU / unified tiers (MoE, 3B active, KV 20 KiB/token). Apache-2.0 ----
+# Uncensored = llmfan46 Heretic MPOA via mradermacher Native-MTP-Preserved i1 (GGUF made 2026-05-24, source weights 2026-05-08).
+# The MTP layer (blk.40, 0.3-0.65 GiB) is skipped at load unless MTP speculation / --load-mtp is on (b12176), so it costs disk only.
+qwen3.6-35b-a3b-heretic-q6k|chat|mradermacher/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-i1-GGUF|Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved.i1-Q6_K.gguf|29207683616|9e6b26675d7e0a74d90a24ffc6262dc2927dde3c95dda657030444e9c265a1a5|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.6-35b-a3b-q6k|chat|unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q6_K.gguf|29308320736|4fe53b148b46f9b88830e2a3055c5b15c3a4d1e3ddc9a1384a108d8b9d59f043|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+# ---- gpt-oss (harmony format, native MXFP4 experts). 20b: 3.6B active, KV 24 KiB/token; 120b: 5.1B active, KV 36 KiB/token. Apache-2.0 ----
+# 20b uncensored: p-e-w heretic-ara-v3 (KL 0.0554, 3/100 refusals); weights uploaded 2026-03-05, mradermacher GGUF 2026-03-06.
+# 120b uncensored: ArliAI Derestricted; weights 2025-11-28 (only chat_template.jinja changed later, 11-29 02:25), mradermacher conversion
+# 2025-11-29 08:32; gghfez file = cat of mradermacher MXFP4_MOE part1of2+part2of2 (sizes sum exactly, range hashes match), uploaded 11-30;
+# its embedded chat template equals ArliAI's current chat_template.jinja byte for byte. Personal account: keep a local copy.
+# gghfez repo has no license tag; GGUF general.license and the ArliAI base are apache-2.0.
+# ---- added for nvidia profiles ----
+qwen3.6-35b-a3b-heretic-iq4xs|chat|mradermacher/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-i1-GGUF|Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved.i1-IQ4_XS.gguf|19178474016|3b0123c8d1a901d7ace6e6b39ef74956c2227df26da8fc9333a5a2a9760b9d6d|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.6-35b-a3b-heretic-q8|chat|llmfan46/Qwen3.6-35B-A3B-uncensored-heretic-GGUF|Qwen3.6-35B-A3B-uncensored-heretic-Q8_0.gguf|36903143232|e346562a85525bd49253b965a273aa7e2f456b473ac9b17f25a4357c7164d69d|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.6-35b-a3b-iq4xs|chat|unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-IQ4_XS.gguf|17730509792|649d7508507b84638732c4f52c24c8b15843c6dca2f3ff793ae07c14a67ebbb3|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.6-35b-a3b-q5ks|chat|unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-UD-Q5_K_S.gguf|24942050272|31d886cbd8c3db2e66f4366cbfed93389cb982bdced1caa37262befdb34f5715|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.6-35b-a3b-q8|chat|unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-Q8_0.gguf|36903140320|d1a395809f65a43a13ad119eb4e7acdef1ac6d68120f39902c8ab96e72794a59|apache-2.0|--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.8-27b-heretic-ara-q6k|chat|mradermacher/Qwen3.8-27B-heretic-ara-i1-GGUF|Qwen3.8-27B-heretic-ara.i1-Q6_K.gguf|22431000736|dcbeff263406762c0a15f6c608a56de32b640783f4a1843e3795c1a90a1fd6d5|apache-2.0|--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.8-27b-heretic-ara-q8|chat|mradermacher/Qwen3.8-27B-heretic-ara-GGUF|Qwen3.8-27B-heretic-ara.Q8_0.gguf|29047084928|73069bece82a7c30f94bc208ab20e81ad43e35a2c980b9cdfc0d1d4f3f9dd00b|apache-2.0|--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.8-27b-iq3s|chat|unsloth/Qwen3.8-27B-GGUF|Qwen3.8-27B-UD-IQ3_S.gguf|12040883104|d847e2c1e4aa276e4b7b8e9ad7628050e61e165d49ab995407bc36677a6f3864|apache-2.0|--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.8-27b-q6k|chat|unsloth/Qwen3.8-27B-GGUF|Qwen3.8-27B-UD-Q6_K.gguf|21983677344|c9c206812fbe4ac7b76a729e25928b63f2ae89d37f69da7a71c20aec763cd436|apache-2.0|--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek
+qwen3.8-27b-q8|chat|unsloth/Qwen3.8-27B-GGUF|Qwen3.8-27B-Q8_0.gguf|29047086048|a680f44a06920e5d689774823782006aa3acc8db95750323373b24139b67e348|apache-2.0|--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0 --chat-template-file {tpl:qwen-fixed} --reasoning-format deepseek

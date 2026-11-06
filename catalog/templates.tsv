@@ -1,0 +1,5 @@
+# Chat templates referenced from catalog args as {tpl:NAME}. name|url|sha256
+# qwen-fixed: froggeric/Qwen-Fixed-Chat-Templates v22.5 (Apache-2.0), pinned to a commit.
+# Fixes the official Qwen 3.5/3.6/3.8 templates: they raise "System message must be at the
+# beginning" on any mid-conversation system message (agent harnesses send those).
+qwen-fixed|https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates/resolve/855bffc49448e299789730ff92c9b8d834d6cc14/chat_template.jinja|e57684bae4156211a55473c5a63be976a405a37ab5be5ae0e5abf1df5349c4b2

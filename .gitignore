@@ -1,0 +1,4 @@
+*.part
+*.gguf
+.DS_Store
+/cache/

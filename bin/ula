@@ -1,0 +1,269 @@
+#!/usr/bin/env bash
+# ula — uncensored-local-agent control CLI. bash 3.2 compatible.
+set -euo pipefail
+
+_self="${BASH_SOURCE[0]}"
+while [ -h "$_self" ]; do                      # follow symlinks (e.g. ~/.local/bin/ula)
+  _d="$(cd -P "$(dirname "$_self")" && pwd)"; _self="$(readlink "$_self")"
+  case "$_self" in /*) ;; *) _self="$_d/$_self" ;; esac
+done
+ULA_ROOT="$(cd -P "$(dirname "$_self")/.." && pwd)"
+
+# Values given explicitly in the environment win over the saved state (ula.env).
+_env_over=""
+for _v in ULA_PROFILE ULA_PORT ULA_MODELS_DIR ULA_SUPERPOWERS ULA_SERVICE; do
+  if eval "[ -n \"\${$_v+x}\" ]"; then _env_over="$_env_over $_v=$(eval "printf %q \"\$$_v\"")"; fi
+done
+# shellcheck source=../lib/common.sh
+. "$ULA_ROOT/lib/common.sh"
+. "$ULA_ROOT/lib/models.sh"
+. "$ULA_ROOT/lib/install.sh"
+. "$ULA_ROOT/lib/render.sh"
+. "$ULA_ROOT/lib/service.sh"
+
+STATE="$ULA_CONFIG/ula.env"
+detect_platform
+# shellcheck disable=SC1090
+[ -f "$STATE" ] && . "$STATE"
+[ -n "$_env_over" ] && eval "$_env_over"
+case "$ULA_PORT" in ''|*[!0-9]*) die "bad ULA_PORT: '$ULA_PORT'" ;; esac
+case ":$PATH:" in *":$ULA_BIN_DIR:"*) ;; *) PATH="$ULA_BIN_DIR:$PATH"; export PATH ;; esac
+
+save_state() {
+  mkdir -p "$ULA_CONFIG"
+  {
+    printf 'ULA_PROFILE=%q\n' "$ULA_PROFILE"
+    printf 'ULA_PORT=%q\n' "$ULA_PORT"
+    printf 'ULA_MODELS_DIR=%q\n' "$ULA_MODELS_DIR"
+    printf 'ULA_SUPERPOWERS=%q\n' "$ULA_SUPERPOWERS"
+    printf 'ULA_SERVICE=%q\n' "${ULA_SERVICE:-}"
+  } > "$STATE"
+}
+
+need_profile() {
+  if [ -z "${ULA_PROFILE:-}" ]; then
+    ULA_PROFILE="$(auto_profile)"
+    if [ ! -f "$ULA_ROOT/profiles/$ULA_PROFILE.env" ]; then
+      die "no profile '$ULA_PROFILE' for this machine. Available: $(cd "$ULA_ROOT/profiles" && ls ./*.env | sed 's|^\./||; s/\.env$//' | tr '\n' ' ')— re-run with --profile NAME"
+    fi
+  fi
+  load_profile "$ULA_PROFILE"
+}
+
+api() { curl -fsS --max-time "${2:-30}" -H "Authorization: Bearer $(ula_api_key)" "http://$ULA_HOST:$ULA_PORT$1"; }
+
+# Local-only switches. OpenCode v2 reads them in its background service, so they are set
+# both in the agent's environment and persisted into the service (opencode_service_env).
+opencode_env_list() {
+  echo OPENCODE_DISABLE_FREE_MODELS=1
+  echo OPENCODE_DISABLE_MODELS_FETCH=1
+  echo OPENCODE_DISABLE_AUTOUPDATE=1
+  [ "${ULA_CLAUDE_SKILLS:-0}" = 1 ] || echo OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1
+  [ "${ULA_PROJECT_CONFIG:-0}" = 1 ] || echo OPENCODE_DISABLE_PROJECT_CONFIG=1
+}
+agent_env() { local kv; for kv in $(opencode_env_list); do export "${kv?}"; done; }
+
+cmd_render() { need_profile; render_swap_yaml; render_opencode; }
+
+cmd_setup() {
+  local models="default" service=1 opencode=1
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --profile) ULA_PROFILE="$2"; shift ;;
+      --profile=*) ULA_PROFILE="${1#*=}" ;;
+      --all-models) models=all ;;
+      --no-models) models=none ;;
+      --models) models="$2"; shift ;;
+      --no-service) service=0 ;;
+      --no-opencode) opencode=0 ;;
+      --no-superpowers) ULA_SUPERPOWERS=0 ;;
+      --superpowers) ULA_SUPERPOWERS=1 ;;
+      *) die "unknown option: $1" ;;
+    esac
+    shift
+  done
+  for t in curl tar gzip uname awk sed cut find mktemp od; do have "$t" || die "'$t' is required"; done
+  need_profile
+  log "profile: $ULA_PROFILE — $PROFILE_DESC  ($ULA_OS/$ULA_ARCH, $(mem_gib) GiB RAM, accel $(detect_accel))"
+  install_llama_cpp
+  install_llama_swap
+  [ "$opencode" = 1 ] && install_opencode
+  [ "$opencode" = 1 ] && install_superpowers
+  case "$models" in
+    none) ;;
+    all|default) pull_models "$models" ;;
+    *) # shellcheck disable=SC2086
+       pull_models $models ;;
+  esac
+  [ "$service" = 1 ] && ULA_SERVICE="$(svc_mode)"
+  save_state
+  render_swap_yaml
+  [ "$opencode" = 1 ] && render_opencode
+  link_cli
+  if [ "$service" = 1 ]; then
+    log "starting llama-swap service ($(svc_mode)) on http://$ULA_HOST:$ULA_PORT"
+    svc_install
+    svc_wait 30 || warn "llama-swap did not answer yet; see 'ula logs'"
+  fi
+  [ "$opencode" = 1 ] && opencode_service_env
+  log "done. Next: 'ula test' to check tool calling, then 'ula agent' in a project directory."
+}
+
+opencode_service_env() {
+  local oc kv; oc="$(OPENCODE_BIN)"
+  [ -x "$oc" ] || { warn "opencode not installed; local-only env not persisted"; return 0; }
+  for kv in $(opencode_env_list); do
+    "$oc" service set env "${kv%%=*}" "${kv#*=}" >/dev/null 2>&1 || warn "could not set ${kv%%=*} on the OpenCode service"
+  done
+  [ "${ULA_CLAUDE_SKILLS:-0}" = 1 ] && { "$oc" service unset env OPENCODE_DISABLE_CLAUDE_CODE_SKILLS >/dev/null 2>&1 || true; }
+  [ "${ULA_PROJECT_CONFIG:-0}" = 1 ] && { "$oc" service unset env OPENCODE_DISABLE_PROJECT_CONFIG >/dev/null 2>&1 || true; }
+  "$oc" service stop >/dev/null 2>&1 || true   # next start picks up the new env
+}
+
+link_cli() {
+  mkdir -p "$ULA_BIN_DIR"
+  ln -sfn "$ULA_ROOT/bin/ula" "$ULA_BIN_DIR/ula"
+  case ":$PATH:" in *":$ULA_BIN_DIR:"*) ;; *)
+    local rc="~/.profile"
+    case "$(basename "${SHELL:-}")" in zsh) rc="~/.zshrc" ;; bash) rc="~/.bashrc" ;; fish) rc="~/.config/fish/config.fish" ;; esac
+    info "add $ULA_BIN_DIR to PATH:  echo 'export PATH=\"$ULA_BIN_DIR:\$PATH\"' >> $rc" ;;
+  esac
+}
+
+cmd_status() {
+  need_profile
+  echo "profile    $ULA_PROFILE — $PROFILE_DESC"
+  echo "endpoint   http://$ULA_HOST:$ULA_PORT/v1  (service: $(svc_mode))"
+  echo "llama.cpp  $(readlink "$ULA_OPT/llama.cpp/current" 2>/dev/null | xargs basename 2>/dev/null || echo 'not installed')"
+  echo "opencode   $(opencode_version || true) ($(OPENCODE_BIN))"
+  if api /v1/models 3 >/dev/null 2>&1; then
+    echo "router     up"
+    echo "running    $(api /running 3 2>/dev/null | tr ',' '\n' | sed -n 's/.*"model": *"\([^"]*\)".*/\1/p' | tr '\n' ' ')"
+  else
+    echo "router     DOWN (ula up)"
+  fi
+  echo; cmd_models
+}
+
+cmd_models() {
+  need_profile
+  printf '%-16s %-8s %-9s %-7s %s\n' ALIAS KIND SIZE CTX FILE
+  profile_entries | while IFS='|' read -r a id ctx extra; do
+    local st="missing"; model_installed "$id" && st="$(human_gb "$(catalog_field "$id" 5)")"
+    printf '%-16s %-8s %-9s %-7s %s\n' "$a" "$(catalog_field "$id" 2)" "$st" "$ctx" "$(catalog_field "$id" 4)"
+  done
+  echo "default set: $ULA_DEFAULT"
+}
+
+cmd_pull() {
+  need_profile
+  case "${1:-}" in
+    "") pull_models default ;;
+    --all|all) pull_models all ;;
+    *) pull_models "$@" ;;
+  esac
+  render_swap_yaml; render_opencode
+}
+
+cmd_profile() {
+  if [ $# -eq 0 ]; then
+    need_profile; echo "$ULA_PROFILE"; echo "available: $(cd "$ULA_ROOT/profiles" && ls *.env | sed 's/\.env$//' | tr '\n' ' ')"
+    echo "detected for this machine: $(auto_profile)"; return
+  fi
+  load_profile "$1"; save_state; render_swap_yaml; render_opencode
+  info "profile set to $1. Run 'ula pull' to download its models."
+}
+
+cmd_doctor() {
+  need_profile
+  local ok=1
+  echo "os/arch     $ULA_OS/$ULA_ARCH, RAM $(mem_gib) GiB, accel $(detect_accel)"
+  [ "$(detect_accel)" = cuda ] && echo "nvidia      $(nvidia_vram_gib) GiB VRAM, CUDA driver $(cuda_driver_major)"
+  echo "profile     $ULA_PROFILE (auto-detect: $(auto_profile))"
+  echo "disk        $(free_gib "$ULA_MODELS_DIR") GiB free at $ULA_MODELS_DIR"
+  if [ "$ULA_OS" = macos ]; then
+    echo "metal wired iogpu.wired_limit_mb=$(sysctl -n iogpu.wired_limit_mb 2>/dev/null) (0 = default ~2/3-3/4 of RAM)"
+    memory_pressure -Q 2>/dev/null | tail -1 | sed 's/^/memory      /'
+  fi
+  [ -x "$ULA_OPT/llama.cpp/current/llama-server" ] && echo "llama-server ok" || { echo "llama-server MISSING (ula setup)"; ok=0; }
+  [ -x "$ULA_OPT/llama-swap/current/llama-swap" ] && echo "llama-swap  ok" || { echo "llama-swap  MISSING (ula setup)"; ok=0; }
+  [ -x "$(OPENCODE_BIN)" ] && echo "opencode    $(opencode_version) ($(OPENCODE_BIN))" || echo "opencode    MISSING (ula setup)"
+  api /v1/models 3 >/dev/null 2>&1 && echo "router      up on :$ULA_PORT" || { echo "router      down (ula up; ula logs)"; ok=0; }
+  [ $ok = 1 ]
+}
+
+cmd_logs() { tail -n "${1:-80}" -f "$ULA_LOGS/llama-swap.log"; }   # all service modes append here
+
+cmd_agent() {
+  local oc; oc="$(OPENCODE_BIN)"
+  [ -x "$oc" ] || die "opencode is not installed (ula setup)"
+  svc_wait 1 || { log "router is down, starting it"; svc_start; svc_wait 20 || die "llama-swap did not start (ula logs)"; }
+  [ "$("$oc" service get env OPENCODE_DISABLE_FREE_MODELS 2>/dev/null || true)" = 1 ] || opencode_service_env
+  agent_env
+  exec "$oc" "$@"
+}
+
+cmd_unload() { api /unload 10 >/dev/null && info "all models unloaded"; }
+
+cmd_bench() {
+  need_profile
+  local a="${1:-$ULA_CODER}" e id
+  e="$(entry_for_alias "$a")"; [ -n "$e" ] || die "unknown alias $a"
+  id="$(echo "$e" | cut -d'|' -f2)"; model_installed "$id" || die "$a is not downloaded"
+  cmd_unload 2>/dev/null || true
+  "$ULA_OPT/llama.cpp/current/llama-bench" -m "$(model_path "$id")" -fa 1 -p 512,4096 -n 128 ${ULA_GPU_ARGS:-}
+}
+
+cmd_uninstall() {
+  svc_uninstall
+  rm -f "$ULA_BIN_DIR/ula"
+  info "removed service and CLI link. Models and binaries remain in $ULA_HOME (delete it to reclaim disk);"
+  info "OpenCode config remains in $OPENCODE_CFG_DIR (a backup of any previous config is next to it)."
+}
+
+usage() {
+  cat <<EOF
+ula $ULA_VERSION — local uncensored coding agent (llama.cpp + llama-swap + OpenCode)
+
+  ula setup [--profile P] [--all-models|--no-models|--models "a b"] [--no-service] [--[no-]superpowers]
+  ula agent [opencode args]     start OpenCode wired to the local models (starts the router if needed)
+  ula status | models | doctor  what is installed / running
+  ula pull [--all | alias...]   download models of the current profile
+  ula profile [name]            show or switch hardware profile
+  ula up | down | restart       control the llama-swap service
+  ula unload                    unload all models (free memory now)
+  ula test [alias...]           smoke-test chat, tool calls, embeddings, rerank
+  ula bench [alias]             llama-bench prompt/generation speed
+  ula logs [n]                  follow router logs
+  ula render                    regenerate llama-swap.yaml and OpenCode config
+  ula catalog verify            check every catalog file still resolves with the pinned sha256
+  ula uninstall                 remove service and CLI link (keeps models)
+EOF
+}
+
+main() {
+  local c="${1:-help}"; [ $# -gt 0 ] && shift
+  case "$c" in
+    setup|install) cmd_setup "$@" ;;
+    agent|code|oc) cmd_agent "$@" ;;
+    status) cmd_status ;;
+    models|ls) cmd_models ;;
+    doctor) cmd_doctor ;;
+    pull) cmd_pull "$@" ;;
+    profile) cmd_profile "$@" ;;
+    up|start) need_profile; svc_start; svc_wait 20 && info "router up on http://$ULA_HOST:$ULA_PORT/v1" ;;
+    down|stop) svc_stop; info "router stopped" ;;
+    restart) svc_stop; sleep 1; need_profile; svc_start; svc_wait 20 && info "router up" ;;
+    unload) cmd_unload ;;
+    test) need_profile; export ULA_ROOT; bash "$ULA_ROOT/tests/smoke.sh" "$@" ;;
+    bench) cmd_bench "$@" ;;
+    logs) cmd_logs "$@" ;;
+    render) cmd_render ;;
+    catalog) [ "${1:-}" = verify ] || die "usage: ula catalog verify"; catalog_verify ;;
+    uninstall) cmd_uninstall ;;
+    version|--version|-v) echo "ula $ULA_VERSION" ;;
+    help|-h|--help) usage ;;
+    *) usage; exit 1 ;;
+  esac
+}
+main "$@"

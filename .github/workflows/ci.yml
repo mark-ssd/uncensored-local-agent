@@ -1,0 +1,45 @@
+name: ci
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 5 * * 1"   # weekly: catch Hugging Face takedowns / changed files
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y shellcheck
+      - run: shellcheck -x -S warning bin/ula install.sh lib/*.sh tests/*.sh
+      - run: for f in bin/ula install.sh lib/*.sh tests/*.sh; do bash -n "$f"; done
+
+  catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bin/ula catalog verify
+
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      ULA_SERVICE: process        # CI runners have no user systemd / GUI launchd session
+      ULA_SUPERPOWERS: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./install.sh --profile tiny
+      - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: ula status
+      - run: ula test
+      - name: agent writes a file through OpenCode
+        run: |
+          d="$(mktemp -d)"; cd "$d"; git init -q .
+          ula agent run --standalone "Create a file hello.py containing: print('hello'). Use the write tool." || true
+          ls -la; test -f hello.py
+      - if: failure()
+        run: tail -n 200 ~/.local/share/ula/logs/llama-swap.log || true
